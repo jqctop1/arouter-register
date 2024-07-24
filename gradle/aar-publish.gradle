@@ -1,0 +1,69 @@
+apply plugin: 'maven-publish'
+
+def getReleaseRepositoryUrl() {
+  return hasProperty('RELEASE_REPOSITORY_URL') ? RELEASE_REPOSITORY_URL : readPropertyFromLocalProperties('RELEASE_REPOSITORY_URL')
+}
+
+def getSnapshotRepositoryUrl() {
+  return hasProperty('SNAPSHOT_REPOSITORY_URL') ? SNAPSHOT_REPOSITORY_URL : readPropertyFromLocalProperties('SNAPSHOT_REPOSITORY_URL')
+}
+
+def fullVersion() {
+    return hasProperty("SNAPSHOT") ? POM_VERSION + "-SNAPSHOT" : POM_VERSION
+}
+
+def readPropertyFromLocalProperties(String key) {
+    Properties properties = new Properties()
+    try {
+        properties.load(project.rootProject.file('local.properties').newDataInputStream())
+    } catch (Exception e) {
+        println("load local properties failed msg:${e.message}")
+    }
+    return properties.getProperty(key)
+}
+
+def getRepositoryUsername() {
+    return hasProperty('REPOSITORY_USERNAME') ? REPOSITORY_USERNAME : readPropertyFromLocalProperties('REPOSITORY_USERNAME')
+}
+
+def getRepositoryPassword() {
+    return hasProperty('REPOSITORY_PASSWORD') ? REPOSITORY_PASSWORD : readPropertyFromLocalProperties('REPOSITORY_PASSWORD')
+}
+
+afterEvaluate {
+    publishing {
+
+        repositories {
+            mavenLocal()
+            maven {
+                url = fullVersion().endsWith('-SNAPSHOT') ? getSnapshotRepositoryUrl() : getReleaseRepositoryUrl()
+                allowInsecureProtocol = true
+                credentials(HttpHeaderCredentials) {
+                    name = getRepositoryUsername()
+                    value = getRepositoryPassword()
+                }
+                authentication {
+                    header(HttpHeaderAuthentication)
+                }
+            }
+        }
+
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = POM_GROUP
+                artifactId = POM_ARTIFACT_ID
+                version = fullVersion()
+            }
+        }
+    }
+}
+
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
+}
